@@ -1,7 +1,20 @@
-const invariant = require('invariant')
+// @flow
 
-require('dotenv').config()
+import assert from 'assert'
+import dotenv from 'dotenv'
 
-module.exports = {
-  apiToken: process.env.TG_API_TOKEN || invariant(false, 'TG_API_TOKEN is required'),
+dotenv.config()
+
+type Config = {|
+  dev: boolean,
+  apiToken: string,
+|}
+
+assert(process.env.TG_API_TOKEN, 'TG_API_TOKEN is required')
+
+const config: Config = {
+  dev: process.env.NODE_ENV === 'development',
+  apiToken: process.env.TG_API_TOKEN || '',
 }
+
+export default config

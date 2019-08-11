@@ -1,14 +1,33 @@
-const api = require('./api')
-const config = require('./config')
-const invariant = require('invariant')
-const chalk = require('chalk')
+// @flow
 
-async function sync(publicProjectId, privateProjectId, {dryRun = false} = {}) {
-  const publicStoriesResponse = await api.stories(publicProjectId, {
+import assert from 'assert'
+import chalk from 'chalk'
+
+import api from './api'
+import type { Story, StoryState } from './api'
+
+type StoryAggregated = {|
+  publicId: number,
+  privateId: number,
+  name: string,
+  currentState: StoryState,
+  actualState: StoryState,
+  publicUrl: string,
+  privateUrl: string,
+|}
+
+export async function getOutOfSyncStories(
+  publicProjectId: number,
+  privateProjectId: number
+) {
+  const publicStoriesResponse: {
+    ok: boolean,
+    response: Story[],
+  } = await api.stories(publicProjectId, {
     filter: 'Pivotal Only',
   })
 
-  invariant(
+  assert(
     publicStoriesResponse.ok,
     `Cannot fetch public stories: ${JSON.stringify(
       publicStoriesResponse.response
@@ -19,66 +38,99 @@ async function sync(publicProjectId, privateProjectId, {dryRun = false} = {}) {
     .filter(story => story.name.match(/Pivotal Only/))
     .map(story => ({
       id: story.id,
-      kind: story.kind,
+      type: story.story_type,
       state: story.current_state,
+      url: story.url,
       privateId: parsePrivateId(story),
     }))
+    .filter(story => story.privateId)
 
-  const privateStoriesResponse = await api.stories(privateProjectId, {
-    filter: `id:${publicStories.map(({privateId}) => privateId).join(',')}`,
-  })
+  const privateStoriesResponse: {
+    ok: boolean,
+    response: Story[],
+  } = await api.storiesById(
+    privateProjectId,
+    // $FlowFixMe ignore as we are filtering publicStories
+    publicStories.map(({ privateId }) => privateId)
+  )
 
-  invariant(
+  assert(
     privateStoriesResponse.ok,
     `Cannot fetch private stories: ${JSON.stringify(
       privateStoriesResponse.response
     )}`
   )
 
-  const outOfSyncPublicStories = getUnsyncedStories(
-    publicStories,
-    privateStoriesResponse.response
-  )
-
-  printUnsyncedStories(outOfSyncPublicStories);
+  return getUnsyncedStories(publicStories, privateStoriesResponse.response)
 }
 
-function parsePrivateId(story) {
+export function printStories(stories: StoryAggregated[]) {
+  stories.forEach(story => {
+    console.log(`${chalk.blue(story.name)}
+    should be ${chalk.red(story.actualState)} but it is ${chalk.green(
+      story.currentState
+    )}
+    public: [#${story.publicId}](${story.publicUrl})
+    private: [#${story.privateId}](${story.privateUrl})
+    `)
+  })
+}
+
+export async function syncPublicStoriesState(
+  projectId: number,
+  stories: StoryAggregated[]
+) {
+  const response = await Promise.all(
+    stories.map(story =>
+      api.updateStory(projectId, story.publicId, {
+        current_state: story.actualState,
+      })
+    )
+  )
+
+  response.forEach(({ ok }, index) => {
+    if (!ok) {
+      console.error(`Could not update story: ${stories[index].publicUrl}`)
+    }
+  })
+}
+
+function parsePrivateId(story): ?number {
   const tokens = story.name.match(/#(\d+)/)
 
   if (!tokens) {
-    invariant(`Invalid story name: ${story.name}`)
+    return console.error(`Invalid story name: ${story.name}`)
   }
 
   return Number(tokens[1])
 }
 
-function getUnsyncedStories(publicStories, privateStories) {
+function getUnsyncedStories(publicStories, privateStories): StoryAggregated[] {
   const privateStoryToPubicStory = new Map()
+
   publicStories.forEach(story => {
     privateStoryToPubicStory.set(story.privateId, story)
   })
 
-  return privateStories.filter(
-    story => privateStoryToPubicStory.has(story.id) && privateStoryToPubicStory.get(story.id).state !== story.current_state
-  ).map(privateStory => {
-    const publicStory = privateStoryToPubicStory.get(privateStory.id)
-    return {
-      publicId: publicStory.id,
-      privateId: privateStory.id,
-      name: privateStory.name,
-      currentState: publicStory.state,
-      actualState: privateStory.current_state,
-    }
-  })
-}
+  return privateStories
+    .filter(story => {
+      const publicStory = privateStoryToPubicStory.get(story.id)
+      return publicStory && publicStory.state !== story.current_state
+    })
+    .map(privateStory => {
+      const publicStory = privateStoryToPubicStory.get(privateStory.id)
 
-function printUnsyncedStories(stories) {
-  stories.forEach(story => {
-    console.log(`story: ${chalk.blue(story.name)}
-    Public Projecy
-    should be ${chalk.red(story.actualState)} but it is ${chalk.green(story.currentState)}`)
-  })
-}
+      if (!publicStory) return null
 
-module.exports = sync
+      return {
+        publicId: publicStory.id,
+        privateId: privateStory.id,
+        name: privateStory.name,
+        currentState: publicStory.state,
+        publicUrl: publicStory.url,
+        privateUrl: privateStory.url,
+        actualState: privateStory.current_state,
+      }
+    })
+    .filter(Boolean)
+}
