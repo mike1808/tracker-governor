@@ -39,6 +39,20 @@ export type Story = {|
   owned_by_id: number,
 |}
 
+export type Activity = {|
+  kind: string,
+  guid: string,
+  project_version: string,
+  message: string,
+  highlight: string,
+  changes: {}[],
+  primary_resources: {}[],
+  secondary_resources: {}[],
+  project_id: number,
+  perform_by_id: number,
+  occurred_at: string,
+|}
+
 type Response<Body> = {|
   ok: boolean,
   status: number,
@@ -114,13 +128,36 @@ class TrackerAPI {
     update: $Shape<Story>
   ): Promise<Response<Story>> {
     return (config.dev ? fetchDryRun : fetch)(
-      `https://www.pivotdaltracker.com/services/v5/projects/${projectId}/stories/${storyId}`,
+      `https://www.pivotaltracker.com/services/v5/projects/${projectId}/stories/${storyId}`,
       {
         method: 'put',
         headers: this._headers({
           'content-type': 'application/json',
         }),
         body: JSON.stringify(update),
+      }
+    ).then(res =>
+      res
+        .json()
+        // $FlowFixMe ignore
+        .then(response => ({ status: res.status, ok: res.ok, response }))
+    )
+  }
+  async postComment(
+    projectId: number,
+    storyId: number,
+    comment: string
+  ): Promise<Response<void>> {
+    return (config.dev ? fetchDryRun : fetch)(
+      `https://www.pivotaltracker.com/services/v5/projects/${projectId}/stories/${storyId}/comments`,
+      {
+        method: 'post',
+        headers: this._headers({
+          'content-type': 'application/json',
+        }),
+        body: JSON.stringify({
+          text: comment,
+        }),
       }
     ).then(res =>
       res

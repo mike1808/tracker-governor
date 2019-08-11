@@ -88,11 +88,43 @@ export async function syncPublicStoriesState(
     )
   )
 
-  response.forEach(({ ok }, index) => {
-    if (!ok) {
-      console.error(`Could not update story: ${stories[index].publicUrl}`)
-    }
-  })
+  return response
+    .map(({ ok }, index) => {
+      if (!ok) {
+        console.error(`Could not update story: ${stories[index].publicUrl}`)
+        return
+      }
+
+      return stories[index]
+    })
+    .filter(Boolean)
+}
+
+export async function commentAboutSyncedState(
+  projectId: number,
+  stories: StoryAggregated[]
+) {
+  return await Promise.all(
+    stories.map(story =>
+      api.postComment(
+        projectId,
+        story.publicId,
+        `*Tracker Governor* updated story state from ` +
+          `**${story.currentState}** to **${story.actualState}** to match the private story #${story.privateId}. `
+      )
+    )
+  )
+
+  return response
+    .map(({ ok }, index) => {
+      if (!ok) {
+        console.error(`Could not update story: ${stories[index].publicUrl}`)
+        return
+      }
+
+      return stories[index]
+    })
+    .filter(Boolean)
 }
 
 function parsePrivateId(story): ?number {
