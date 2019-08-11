@@ -12,7 +12,7 @@ export async function getOutOfSyncStories(
   publicProjectId: number,
   privateProjectId: number
 ) {
-  const publicStories = fetchPrivateStoriesFromPublicProject(publicProjectId)
+  const publicStories = await fetchPrivateStoriesFromPublicProject(publicProjectId)
 
   const privateStoriesResponse: {
     ok: boolean,
@@ -34,15 +34,19 @@ export async function getOutOfSyncStories(
 }
 
 export function printStories(stories: StoryAggregated[]) {
-  stories.forEach(story => {
-    console.log(`${chalk.blue(story.name)}
+  if (stories.length) {
+    stories.forEach(story => {
+      console.log(`${chalk.blue(story.name)}
     should be ${chalk.red(story.actualState)} but it is ${chalk.green(
-      story.currentState
-    )}
+        story.currentState
+      )}
     public: [#${story.publicId}](${story.publicUrl})
     private: [#${story.privateId}](${story.privateUrl})
     `)
-  })
+    })
+  } else {
+    console.log(`🙌 Nice! Your tracker is in sync!`)
+  }
 }
 
 export async function syncPublicStoriesState(
