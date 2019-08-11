@@ -15,12 +15,14 @@ export type StoryState =
   | 'unstarted'
   | 'unscheduled'
 
+export type StoryType = 'feature' | 'bug' | 'chore' | 'release'
+
 export type Story = {|
   id: number,
   project_id: number,
   name: string,
   description: string,
-  story_type: 'feature' | 'bug' | 'chore' | 'release',
+  story_type: StoryType,
   kind: 'story',
   current_state: StoryState,
   estimate?: number,
@@ -45,12 +47,17 @@ export type Activity = {|
   project_version: string,
   message: string,
   highlight: string,
-  changes: {}[],
-  primary_resources: {}[],
-  secondary_resources: {}[],
+  changes: any[],
+  primary_resources: any[],
+  secondary_resources: any[],
   project_id: number,
   perform_by_id: number,
   occurred_at: string,
+  project: {|
+    kind: 'project',
+    id: number,
+    name: string,
+  |},
 |}
 
 type Response<Body> = {|

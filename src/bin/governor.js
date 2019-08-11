@@ -25,7 +25,10 @@ program
     assert(cmd.publicProjectId, 'Public project ID is required')
     assert(cmd.privateProjectId, 'Private project ID is required')
 
-    sync.getOutOfSyncStories(cmd.publicProjectId, cmd.privateProjectId)
+    const publicProjectId = +cmd.publicProjectId;
+    const privateProjectId = +cmd.privateProjectId;
+
+    sync.getOutOfSyncStories(publicProjectId, privateProjectId)
       .then(outOfSyncStories => {
         if (!cmd.silent) {
           sync.printStories(outOfSyncStories)
@@ -34,14 +37,14 @@ program
         return (cmd.yes ? Promise.resolve(outOfSyncStories) : promptStoriesToChange(outOfSyncStories))
           .then(storiesToChange => {
             if (cmd.dryRun) {
-              return;
+              return [];
             }
 
-            return sync.syncPublicStoriesState(cmd.publicProjectId, storiesToChange);
+            return sync.syncPublicStoriesState(publicProjectId, storiesToChange);
           })
           .then((updatedStories) => {
             if (!cmd.noComments) {
-              sync.commentAboutSyncedState(cmd.publicProjectId, updatedStories)
+              sync.commentAboutSyncedState(publicProjectId, updatedStories)
             }
           })
       })
@@ -56,7 +59,10 @@ program
     assert(cmd.publicProjectId, 'Public project ID is required')
     assert(cmd.privateProjectId, 'Private project ID is required')
 
-    server(cmd.publicProjectId, cmd.privateProjectId)
+    const publicProjectId = +cmd.publicProjectId;
+    const privateProjectId = +cmd.privateProjectId;
+
+    server(publicProjectId, privateProjectId)
       .then((port) => {
         console.log(`Server started on port: ${port}`)
       })

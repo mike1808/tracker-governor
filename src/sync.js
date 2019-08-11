@@ -5,45 +5,14 @@ import chalk from 'chalk'
 
 import api from './api'
 import type { Story, StoryState } from './api'
-
-type StoryAggregated = {|
-  publicId: number,
-  privateId: number,
-  name: string,
-  currentState: StoryState,
-  actualState: StoryState,
-  publicUrl: string,
-  privateUrl: string,
-|}
+import { fetchPrivateStoriesFromPublicProject } from './common'
+import type { StoryAggregated } from './common'
 
 export async function getOutOfSyncStories(
   publicProjectId: number,
   privateProjectId: number
 ) {
-  const publicStoriesResponse: {
-    ok: boolean,
-    response: Story[],
-  } = await api.stories(publicProjectId, {
-    filter: 'Pivotal Only',
-  })
-
-  assert(
-    publicStoriesResponse.ok,
-    `Cannot fetch public stories: ${JSON.stringify(
-      publicStoriesResponse.response
-    )}`
-  )
-
-  const publicStories = publicStoriesResponse.response
-    .filter(story => story.name.match(/Pivotal Only/))
-    .map(story => ({
-      id: story.id,
-      type: story.story_type,
-      state: story.current_state,
-      url: story.url,
-      privateId: parsePrivateId(story),
-    }))
-    .filter(story => story.privateId)
+  const publicStories = fetchPrivateStoriesFromPublicProject(publicProjectId)
 
   const privateStoriesResponse: {
     ok: boolean,
@@ -79,7 +48,7 @@ export function printStories(stories: StoryAggregated[]) {
 export async function syncPublicStoriesState(
   projectId: number,
   stories: StoryAggregated[]
-) {
+): Promise<StoryAggregated[]> {
   const response = await Promise.all(
     stories.map(story =>
       api.updateStory(projectId, story.publicId, {
@@ -100,42 +69,7 @@ export async function syncPublicStoriesState(
     .filter(Boolean)
 }
 
-export async function commentAboutSyncedState(
-  projectId: number,
-  stories: StoryAggregated[]
-) {
-  return await Promise.all(
-    stories.map(story =>
-      api.postComment(
-        projectId,
-        story.publicId,
-        `*Tracker Governor* updated story state from ` +
-          `**${story.currentState}** to **${story.actualState}** to match the private story #${story.privateId}. `
-      )
-    )
-  )
-
-  return response
-    .map(({ ok }, index) => {
-      if (!ok) {
-        console.error(`Could not update story: ${stories[index].publicUrl}`)
-        return
-      }
-
-      return stories[index]
-    })
-    .filter(Boolean)
-}
-
-function parsePrivateId(story): ?number {
-  const tokens = story.name.match(/#(\d+)/)
-
-  if (!tokens) {
-    return console.error(`Invalid story name: ${story.name}`)
-  }
-
-  return Number(tokens[1])
-}
+export { commentAboutSyncedState } from './common'
 
 function getUnsyncedStories(publicStories, privateStories): StoryAggregated[] {
   const privateStoryToPubicStory = new Map()
